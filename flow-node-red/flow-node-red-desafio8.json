@@ -1,0 +1,277 @@
+[
+    {
+        "id": "6069f514.6d13dc",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "ff022ed2.27da4",
+        "type": "http in",
+        "z": "6069f514.6d13dc",
+        "name": "",
+        "url": "/fiat",
+        "method": "post",
+        "upload": true,
+        "swaggerDoc": "",
+        "x": 100,
+        "y": 500,
+        "wires": [
+            [
+                "d05254bc.22cb98"
+            ]
+        ]
+    },
+    {
+        "id": "d05254bc.22cb98",
+        "type": "switch",
+        "z": "6069f514.6d13dc",
+        "name": "Verifica se é Texto ou Audio",
+        "property": "req.files.length",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "gt",
+                "v": "0",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 340,
+        "y": 500,
+        "wires": [
+            [
+                "ecb0d4b4.f0b818"
+            ],
+            [
+                "4188bade.702594"
+            ]
+        ]
+    },
+    {
+        "id": "4188bade.702594",
+        "type": "change",
+        "z": "6069f514.6d13dc",
+        "name": "Texto",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "req.body.text",
+                "tot": "msg"
+            },
+            {
+                "t": "set",
+                "p": "car",
+                "pt": "msg",
+                "to": "req.body.car",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 580,
+        "y": 560,
+        "wires": [
+            [
+                "3df27a4e.f0e476"
+            ]
+        ]
+    },
+    {
+        "id": "3df27a4e.f0e476",
+        "type": "function",
+        "z": "6069f514.6d13dc",
+        "name": "NLU Options",
+        "func": "msg.payload = (msg.req.body.text ? msg.req.body.text : msg.payload);\nmsg.nlu_options = {\"entity_model\":\"49a045d1-101f-4a64-9a56-0913c9a01048\"};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 790,
+        "y": 560,
+        "wires": [
+            [
+                "4308c298.90e04c"
+            ]
+        ]
+    },
+    {
+        "id": "7b9aedd0.123424",
+        "type": "function",
+        "z": "6069f514.6d13dc",
+        "name": "Recomendação",
+        "func": "//msg.payload = msg.features;\n//msg.payload = {\"API\": \"Ok\"};\n//return msg;\n\nvar sentimentGeneral = msg.features.sentiment.document.label;\nvar features = msg.features;\nvar entities = features.entities;\nvar negative_entity;\nvar len = entities.length;\nvar modelo = msg.car;\nvar m_out = [];\nvar entities_out = [];\nvar recommendation;\n\n// Salvando as entidades\nfor (i=0; i<len; i++) {\n    entity = entities[i].type;\n    mention = entities[i].text;\n    sentiment = entities[i].sentiment.score;\n    \n    var newmsg = {\n        \"entity\": entity,\n        \"sentiment\": sentiment,\n        \"mention\": mention,\n    }\n    entities_out.push(newmsg);\n    \n    // Salvando os sentimentos negativos em um vetor\n    if (sentiment<0 && entity!==\"MODELO\") {\n        var negatives = {\n            \"entity\": entity,\n            \"sentiment\": sentiment\n        }\n        m_out.push(negatives);\n    }\n}\n\n// Ordenar a lista de negativos\nm_out.sort(ordenarPorSentiment);\nfunction ordenarPorSentiment(a, b){\n    return a.sentiment - b.sentiment;\n}\n\n// Definir entidade com sentimento mais negativo\nif(m_out.length > 1) {\n    if (m_out[0].sentiment === m_out[1].sentiment || Math.abs(m_out[0].sentiment-m_out[1].sentiment) < 0.1) {\n        var priority0 = priorities(m_out[0].entity);\n        var priority1 = priorities(m_out[1].entity);\n        if (priority0 < priority1) {\n            negative_entity = m_out[0].entity;\n        } else {\n            negative_entity = m_out[1].entity\n        }\n    } \n    else {\n        negative_entity = m_out[0].entity;\n    }\n} \nelse if (m_out.length == 1){\n    negative_entity = m_out[0].entity;\n}\nelse {\n    negative_entity = \"\"\n}\n\n// Função que verifica a prioridade\nfunction priorities(entity) {\n    switch (entity) {\n        case \"SEGURANCA\": return 1;\n        case \"CONSUMO\": return 2;\n        case \"DESEMPENHO\": return 3;\n        case \"MANUTENCAO\": return 4;\n        case \"CONFORTO\": return 5;\n        case \"DESIGN\": return 6;\n        case \"ACESSORIOS\": return 7;\n    }\n}\n\n// Escolha da recomendação\nswitch (negative_entity) {\n    case \"ACESSORIOS\":\n        if (modelo.indexOf(\"RENEGADE\") === 0){recommendation = \"ARGO\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"RENEGADE\";}\n        break;\n    case \"CONFORTO\":\n        if (modelo.indexOf(\"CRONOS\") === 0){recommendation = \"LINEA\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"CRONOS\";}\n        break;\n    case \"CONSUMO\":\n        if (modelo.indexOf(\"ARGO\") === 0){recommendation = \"TORO\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"ARGO\";}\n        break;\n    case \"DESEMPENHO\":\n        if (modelo.indexOf(\"MAREA\") === 0){recommendation = \"ARGO\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"MAREA\";}\n        break;\n    case \"DESIGN\":\n        if (modelo.indexOf(\"RENEGADE\") === 0){recommendation = \"TORO\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"RENEGADE\";}\n        break;\n    case \"MANUTENCAO\":\n        if (modelo.indexOf(\"TORO\") === 0){recommendation = \"CRONOS\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"TORO\";}\n        break;\n    case \"SEGURANCA\":\n        if (modelo.indexOf(\"FIAT 500\") === 0){recommendation = \"TORO\";}\n        else if (modelo.indexOf(\"DUCATO\") === 0){recommendation = \"FIORINO\";}\n        else if (modelo.indexOf(\"FIORINO\") === 0){recommendation = \"DUCATO\";}\n        else {recommendation = \"FIAT 500\";}\n        break;\n    default:\n        break;\n}\n\n// Envio do JSON\nif (len === 0) {\n    msg.payload = {\n        \"recommendation\": \"\",\n        \"entities\": []\n    }\n}\nelse if (sentimentGeneral === \"negative\") {\n    msg.payload = {\n        \"recommendation\": recommendation,\n        \"entities\": entities_out\n    }\n} \nelse {\n    msg.payload = {\n        \"recommendation\": \"\",\n        \"entities\": entities_out\n    }\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 800,
+        "y": 700,
+        "wires": [
+            [
+                "cc0e8eb6.79214",
+                "ca60bb79.6e9c08"
+            ]
+        ]
+    },
+    {
+        "id": "cc0e8eb6.79214",
+        "type": "http response",
+        "z": "6069f514.6d13dc",
+        "name": "Resposta",
+        "statusCode": "",
+        "headers": {
+            "content-type": "application/json"
+        },
+        "x": 1020,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "4308c298.90e04c",
+        "type": "natural-language-understanding",
+        "z": "6069f514.6d13dc",
+        "name": "NLU",
+        "categories": true,
+        "limitcategories": "3",
+        "concepts": false,
+        "maxconcepts": "8",
+        "doc-emotion": false,
+        "doc-emotion-target": "",
+        "doc-sentiment": true,
+        "doc-sentiment-target": "",
+        "entity": true,
+        "entity-emotion": false,
+        "entity-sentiment": true,
+        "maxentities": "50",
+        "keyword": false,
+        "keyword-emotion": false,
+        "keyword-sentiment": false,
+        "maxkeywords": "50",
+        "metadata": false,
+        "relation": false,
+        "semantic": false,
+        "semantic-entities": false,
+        "semantic-keywords": false,
+        "maxsemantics": "50",
+        "limittextcharacters": "0",
+        "syntax": false,
+        "syntax-sentences": false,
+        "syntax-tokens-lemma": false,
+        "syntax-tokens-pos": false,
+        "service-endpoint": "",
+        "x": 990,
+        "y": 560,
+        "wires": [
+            [
+                "7b9aedd0.123424"
+            ]
+        ]
+    },
+    {
+        "id": "f6f605d6.510d38",
+        "type": "inject",
+        "z": "6069f514.6d13dc",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "O Argo tem um espaço interno excelente, mesmo com 1,94 de altura, sobra espaço pra cabeça e pernas tanto na frete, quanto no banco de trás, mesmo com o banco do motorista ajustado até o fim. Computador de bordo excelente, muito completo. Multimídia de 7 polegadas é bem localizada e tem excelentes funções, apesar que poderia ser mais rápida. Sabendo dirigir, o carro é muito econômico, tanto na cidade quanto na estrada.",
+        "payloadType": "str",
+        "x": 590,
+        "y": 640,
+        "wires": [
+            [
+                "3df27a4e.f0e476"
+            ]
+        ]
+    },
+    {
+        "id": "ca60bb79.6e9c08",
+        "type": "debug",
+        "z": "6069f514.6d13dc",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1030,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "ecb0d4b4.f0b818",
+        "type": "function",
+        "z": "6069f514.6d13dc",
+        "name": "Pega o buffer",
+        "func": "msg.payload = msg.req.files[0].buffer;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 600,
+        "y": 440,
+        "wires": [
+            [
+                "63225600.2b09ac"
+            ]
+        ]
+    },
+    {
+        "id": "63225600.2b09ac",
+        "type": "watson-speech-to-text",
+        "z": "6069f514.6d13dc",
+        "name": "",
+        "alternatives": 1,
+        "speakerlabels": false,
+        "smartformatting": false,
+        "lang": "pt-BR",
+        "langhidden": "pt-BR",
+        "langcustom": "NoCustomisationSetting",
+        "langcustomhidden": "",
+        "custom-weight": "0.5",
+        "band": "BroadbandModel",
+        "bandhidden": "",
+        "keywords": "",
+        "keywords-threshold": "0.5",
+        "word-confidence": false,
+        "password": "",
+        "apikey": "8pLyrVr7TWiCr7ia9AEMQJ4M715mKMfmurUG0lyaB6PF",
+        "payload-response": true,
+        "streaming-mode": false,
+        "streaming-mute": true,
+        "auto-connect": false,
+        "discard-listening": false,
+        "disable-precheck": false,
+        "service-endpoint": "",
+        "x": 820,
+        "y": 440,
+        "wires": [
+            [
+                "3df27a4e.f0e476"
+            ]
+        ]
+    }
+]
